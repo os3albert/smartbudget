@@ -3,21 +3,21 @@
   <!-- White background -->
   <rect width="1024" height="1024" rx="220" fill="#FFFFFF"/>
 
-  <!-- Dark ring -->
+  <!-- Dark focus ring -->
   <circle cx="512" cy="512" r="300"
           fill="none"
-          stroke="#14532D"
+          stroke="#2A1FA3"
           stroke-width="40"/>
 
-  <!-- Green inner circle -->
-  <circle cx="512" cy="512" r="260" fill="#16A34A"/>
+  <!-- Main purple savings area -->
+  <circle cx="512" cy="512" r="260" fill="#4F39F6"/>
 
   <!-- Coin -->
   <circle cx="512" cy="512" r="150" fill="#FFFFFF"/>
 
-  <!-- Minimal savings lines -->
-  <rect x="472" y="460" width="80" height="20" rx="10" fill="#14532D"/>
-  <rect x="452" y="510" width="120" height="20" rx="10" fill="#14532D"/>
-  <rect x="482" y="560" width="60" height="20" rx="10" fill="#14532D"/>
+  <!-- Minimal savings bars -->
+  <rect x="472" y="460" width="80" height="20" rx="10" fill="#2A1FA3"/>
+  <rect x="452" y="510" width="120" height="20" rx="10" fill="#2A1FA3"/>
+  <rect x="482" y="560" width="60" height="20" rx="10" fill="#2A1FA3"/>
 
 </svg>
