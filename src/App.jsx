@@ -20,7 +20,9 @@ import {
   AlertTriangle,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  HelpCircle,
+  ArrowDown
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -83,7 +85,19 @@ const translations = {
     btnCancel: "Annulla",
     btnOverwrite: "Sovrascrivi Mese",
     selectMonthTitle: "Seleziona Mese",
-    confirm: "Conferma"
+    confirm: "Conferma",
+    startTutorial: "Mostra Tutorial",
+    tutStep1Title: "1. Imposta il Budget",
+    tutStep1Desc: "Inserisci le tue entrate e l'obiettivo di risparmio. L'app calcolerà i tuoi limiti di spesa in automatico.",
+    tutStep2Title: "2. Spese Settimanali",
+    tutStep2Desc: "Annota le tue uscite per ogni settimana. Ti avviseremo se stai superando il budget previsto!",
+    tutStep3Title: "3. Chiusura Mese",
+    tutStep3Desc: "Verifica il totale speso e salva il mese per aggiornare definitivamente i tuoi risparmi accumulati.",
+    tutStep4Title: "4. Esplora",
+    tutStep4Desc: "Usa il menu in basso per navigare. Controlla lo storico, visualizza i grafici e cambia la lingua nelle impostazioni.",
+    tutBtnNext: "Avanti",
+    tutBtnFinish: "Capito!",
+    tutBtnSkip: "Salta"
   },
   en: {
     appTitle: "Smart Budget",
@@ -129,7 +143,19 @@ const translations = {
     btnCancel: "Cancel",
     btnOverwrite: "Overwrite Month",
     selectMonthTitle: "Select Month",
-    confirm: "Confirm"
+    confirm: "Confirm",
+    startTutorial: "Show Tutorial",
+    tutStep1Title: "1. Set Budget",
+    tutStep1Desc: "Enter your income and savings goal. The app will automatically calculate your spending limits.",
+    tutStep2Title: "2. Weekly Expenses",
+    tutStep2Desc: "Record your expenses for each week. We'll warn you if you're exceeding the planned budget!",
+    tutStep3Title: "3. Month Close",
+    tutStep3Desc: "Check the total spent and save the month to permanently update your accumulated savings.",
+    tutStep4Title: "4. Explore",
+    tutStep4Desc: "Use the bottom menu to navigate. Check history, view charts, and change language in settings.",
+    tutBtnNext: "Next",
+    tutBtnFinish: "Got it!",
+    tutBtnSkip: "Skip"
   },
   fr: {
     appTitle: "Smart Budget",
@@ -175,7 +201,19 @@ const translations = {
     btnCancel: "Annuler",
     btnOverwrite: "Écraser le mois",
     selectMonthTitle: "Choisir le mois",
-    confirm: "Confirmer"
+    confirm: "Confirmer",
+    startTutorial: "Afficher le Tutoriel",
+    tutStep1Title: "1. Définir le Budget",
+    tutStep1Desc: "Entrez vos revenus et votre objectif d'épargne. L'app calculera automatiquement vos limites.",
+    tutStep2Title: "2. Dépenses Hebdo",
+    tutStep2Desc: "Notez vos dépenses chaque semaine. Nous vous avertirons si vous dépassez le budget !",
+    tutStep3Title: "3. Clôture du Mois",
+    tutStep3Desc: "Vérifiez le total dépensé et sauvegardez le mois pour mettre à jour vos économies.",
+    tutStep4Title: "4. Explorer",
+    tutStep4Desc: "Utilisez le menu pour naviguer. Consultez l'historique, les graphiques et les paramètres.",
+    tutBtnNext: "Suivant",
+    tutBtnFinish: "Compris!",
+    tutBtnSkip: "Passer"
   },
   es: {
     appTitle: "Smart Budget",
@@ -221,7 +259,19 @@ const translations = {
     btnCancel: "Cancelar",
     btnOverwrite: "Sobrescribir Mes",
     selectMonthTitle: "Seleccionar Mes",
-    confirm: "Confirmar"
+    confirm: "Confirmar",
+    startTutorial: "Mostrar Tutorial",
+    tutStep1Title: "1. Establecer Presupuesto",
+    tutStep1Desc: "Ingresa tus ingresos y meta de ahorro. La app calculará automáticamente tus límites.",
+    tutStep2Title: "2. Gastos Semanales",
+    tutStep2Desc: "Anota tus gastos de cada semana. ¡Te avisaremos si estás excediendo el presupuesto!",
+    tutStep3Title: "3. Cierre de Mes",
+    tutStep3Desc: "Revisa el gasto total y guarda el mes para actualizar permanentemente tus ahorros.",
+    tutStep4Title: "4. Explorar",
+    tutStep4Desc: "Usa el menú inferior para navegar por el historial, gráficos y ajustes.",
+    tutBtnNext: "Siguiente",
+    tutBtnFinish: "¡Entendido!",
+    tutBtnSkip: "Omitir"
   }
 };
 
@@ -290,6 +340,10 @@ const App = () => {
   const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [isBudgetCollapsed, setIsBudgetCollapsed] = useState(false);
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  
+  // Stato Tutorial Riveduto
+  const [tutorialStep, setTutorialStep] = useState(0); 
+  const [tutFade, setTutFade] = useState('in'); // Gestisce l'animazione di dissolvenza
   
   // Stato per il nuovo Month Picker Custom
   const [showMonthPicker, setShowMonthPicker] = useState(false);
@@ -453,7 +507,6 @@ const App = () => {
     });
   }, [history, lang]);
 
-  // Gestione Month Picker Custom
   const monthsList = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const d = new Date(2000, i, 1);
@@ -469,13 +522,54 @@ const App = () => {
     setShowMonthPicker(false);
   };
 
+  // --- LOGICA TUTORIAL ---
+  const startTutorial = () => {
+    setView('dashboard');
+    setIsBudgetCollapsed(false);
+    setTutFade('in');
+    setTutorialStep(1);
+  };
+
+  const handleNextTutorial = () => {
+    setTutFade('out');
+    setTimeout(() => {
+      if (tutorialStep < 4) {
+        setTutorialStep(prev => prev + 1);
+        setTutFade('in');
+      } else {
+        setTutorialStep(0);
+        setTutFade('in');
+      }
+    }, 300); // Tempo della dissolvenza CSS
+  };
+
+  const handleSkipTutorial = () => {
+    setTutFade('out');
+    setTimeout(() => {
+      setTutorialStep(0);
+      setTutFade('in');
+    }, 300);
+  };
+
+  // Autoscroll fluido verso l'elemento evidenziato
+  useEffect(() => {
+    if (tutorialStep > 0 && tutorialStep < 4) {
+      const el = document.getElementById(`tut-step-${tutorialStep}`);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 50);
+      }
+    }
+  }, [tutorialStep]);
+
   if (!hasInitLang) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24 relative overflow-x-hidden">
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24 relative overflow-clip">
       
       {/* HEADER */}
-      <header className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-lg sticky top-0 z-20">
+      <header className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-lg sticky top-0 z-30">
         <div className="max-w-md mx-auto flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-black tracking-tight">{t('appTitle')}</h1>
@@ -483,13 +577,23 @@ const App = () => {
               {t('appSubtitle')}
             </p>
           </div>
-          <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
-            <Wallet className="w-6 h-6" />
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={startTutorial}
+              title={t('startTutorial')}
+              className="bg-white/20 p-3 rounded-2xl backdrop-blur-md hover:bg-white/30 transition-colors active:scale-95 shadow-sm relative z-30"
+            >
+              <HelpCircle className="w-6 h-6" />
+            </button>
+            <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md">
+              <Wallet className="w-6 h-6" />
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-md mx-auto p-4 space-y-6 -mt-6 relative z-10">
+      {/* Rimosso z-10 per permettere all'elemento evidenziato di emergere dallo sfondo */}
+      <main className="max-w-md mx-auto p-4 space-y-6 -mt-6 relative">
         
         {/* Card Saldo Totale */}
         {view !== 'settings' && (
@@ -506,10 +610,21 @@ const App = () => {
 
         {/* DASHBOARD */}
         {view === 'dashboard' && (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+          // Rimuovo animazioni genitore durante il tutorial per non intrappolare lo z-index
+          <div className={`space-y-6 ${tutorialStep === 0 ? 'animate-in slide-in-from-bottom-4 duration-300' : ''}`}>
             
             {/* 1. Impostazioni Iniziali */}
-            <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100 transition-all duration-300">
+            <div 
+              id="tut-step-1"
+              className={`bg-white rounded-3xl p-6 shadow-md border border-slate-100 transition-all duration-500 ${tutorialStep === 1 ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-50 relative z-[101] scale-[1.02]' : ''}`}
+            >
+              {/* Freccia Fluttuante Passaggio 1 */}
+              {tutorialStep === 1 && (
+                <div className="absolute -top-4 right-6 z-[103] animate-bounce bg-indigo-600 p-2 rounded-full shadow-xl">
+                  <ArrowDown className="w-6 h-6 text-white" />
+                </div>
+              )}
+
               <div className="flex justify-between items-center mb-4 select-none">
                 <h3 
                   className="text-lg font-bold flex items-center gap-2 group hover:text-indigo-700 transition-colors cursor-pointer"
@@ -519,7 +634,6 @@ const App = () => {
                   {isBudgetCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
                 </h3>
 
-                {/* Selettore Mese Custom (Pulsante che apre il modale) */}
                 <button 
                   onClick={() => setShowMonthPicker(true)}
                   className="relative group flex items-center"
@@ -596,7 +710,16 @@ const App = () => {
             </div>
 
             {/* 2. Dettaglio Settimanale */}
-            <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100">
+            <div 
+              id="tut-step-2"
+              className={`bg-white rounded-3xl p-6 shadow-md border border-slate-100 transition-all duration-500 ${tutorialStep === 2 ? 'ring-4 ring-amber-400 ring-offset-4 ring-offset-slate-50 relative z-[101] scale-[1.02]' : ''}`}
+            >
+              {tutorialStep === 2 && (
+                <div className="absolute -top-4 right-6 z-[103] animate-bounce bg-amber-500 p-2 rounded-full shadow-xl">
+                  <ArrowDown className="w-6 h-6 text-white" />
+                </div>
+              )}
+
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Layers className="w-5 h-5 text-amber-500" /> {t('weeklyExpenses')}
               </h3>
@@ -645,7 +768,16 @@ const App = () => {
             </div>
 
             {/* 3. Conclusione Mese */}
-            <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100">
+            <div 
+              id="tut-step-3"
+              className={`bg-white rounded-3xl p-6 shadow-md border border-slate-100 transition-all duration-500 ${tutorialStep === 3 ? 'ring-4 ring-emerald-400 ring-offset-4 ring-offset-slate-50 relative z-[101] scale-[1.02]' : ''}`}
+            >
+              {tutorialStep === 3 && (
+                <div className="absolute -top-4 right-6 z-[103] animate-bounce bg-emerald-500 p-2 rounded-full shadow-xl">
+                  <ArrowDown className="w-6 h-6 text-white" />
+                </div>
+              )}
+
               <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Save className="w-5 h-5 text-emerald-600" /> {t('finalSummary')}
               </h3>
@@ -800,7 +932,14 @@ const App = () => {
       </main>
 
       {/* Navigazione Bottom */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 px-4 py-4 flex justify-between items-center max-w-md mx-auto rounded-t-[2.5rem] shadow-2xl z-30">
+      <nav className={`fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 px-4 py-4 flex justify-between items-center max-w-md mx-auto rounded-t-[2.5rem] shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-40 transition-all duration-500 ${tutorialStep === 4 ? 'ring-4 ring-indigo-500 ring-offset-4 ring-offset-slate-50 !bg-white z-[101] scale-[1.02] origin-bottom' : ''}`}>
+        
+        {tutorialStep === 4 && (
+          <div className="absolute -top-6 right-6 z-[103] animate-bounce bg-indigo-600 p-2 rounded-full shadow-xl">
+            <ArrowDown className="w-6 h-6 text-white" />
+          </div>
+        )}
+
         <button onClick={() => setView('dashboard')} className={`flex-1 flex flex-col items-center gap-1 transition-colors ${view === 'dashboard' ? 'text-indigo-600' : 'text-slate-400'}`}>
           <PlusCircle className="w-6 h-6" />
           <span className="text-[10px] font-black uppercase tracking-tighter truncate w-full text-center px-1">{t('navInsert')}</span>
@@ -853,7 +992,7 @@ const App = () => {
         </div>
       )}
 
-      {/* CUSTOM MONTH PICKER MODAL (Wheel style list) */}
+      {/* CUSTOM MONTH PICKER MODAL */}
       {showMonthPicker && (
         <div className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
           <div 
@@ -907,6 +1046,66 @@ const App = () => {
             >
               {t('confirm')}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* --- TUTORIAL INTERATTIVO RIVISTO --- */}
+      
+      {/* Sfondo Oscurato Fisso */}
+      {tutorialStep > 0 && (
+        <div className="fixed inset-0 z-[100] bg-slate-900/80 backdrop-blur-sm transition-opacity duration-500" />
+      )}
+      
+      {/* Riquadro Spiegazione (Si sposta e dissolve) */}
+      {tutorialStep > 0 && (
+        <div className={`fixed inset-x-0 z-[102] flex justify-center p-4 pointer-events-none transition-all duration-500 ease-in-out ${tutFade === 'in' ? 'opacity-100 translate-y-0' : 'opacity-0 scale-95'} ${(tutorialStep === 3 || tutorialStep === 4) ? 'top-10' : 'bottom-10'}`}>
+          <div className="max-w-sm w-full bg-white rounded-[2.5rem] p-6 shadow-2xl pointer-events-auto border border-slate-100">
+            <div className="flex justify-between items-start mb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-50 rounded-2xl">
+                  {tutorialStep === 1 && <Calendar className="w-6 h-6 text-indigo-600" />}
+                  {tutorialStep === 2 && <Layers className="w-6 h-6 text-amber-500" />}
+                  {tutorialStep === 3 && <Save className="w-6 h-6 text-emerald-500" />}
+                  {tutorialStep === 4 && <Settings className="w-6 h-6 text-indigo-600" />}
+                </div>
+                <h3 className="text-xl font-black text-slate-800">
+                  {t(`tutStep${tutorialStep}Title`)}
+                </h3>
+              </div>
+              <button onClick={handleSkipTutorial} className="text-slate-400 hover:text-slate-600 p-1.5 bg-slate-50 rounded-full transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-slate-500 leading-relaxed mb-8 font-medium text-sm">
+              {t(`tutStep${tutorialStep}Desc`)}
+            </p>
+
+            <div className="flex items-center justify-between mt-2">
+              <div className="flex gap-1.5">
+                {[1, 2, 3, 4].map(step => (
+                  <div key={step} className={`h-2 rounded-full transition-all duration-300 ${tutorialStep === step ? 'w-6 bg-indigo-600' : 'w-2 bg-slate-200'}`} />
+                ))}
+              </div>
+              
+              <div className="flex gap-3">
+                {tutorialStep < 4 && (
+                  <button 
+                    onClick={handleSkipTutorial} 
+                    className="text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                  >
+                    {t('tutBtnSkip')}
+                  </button>
+                )}
+                <button 
+                  onClick={handleNextTutorial}
+                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-200 hover:bg-indigo-700 active:scale-95 transition-all"
+                >
+                  {tutorialStep < 4 ? t('tutBtnNext') : t('tutBtnFinish')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
