@@ -22,7 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
   HelpCircle,
-  ArrowDown
+  ArrowDown,
+  Database,
+  Download,
+  Upload
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -97,7 +100,14 @@ const translations = {
     tutStep4Desc: "Usa il menu in basso per navigare. Controlla lo storico, visualizza i grafici e cambia la lingua nelle impostazioni.",
     tutBtnNext: "Avanti",
     tutBtnFinish: "Capito!",
-    tutBtnSkip: "Salta"
+    tutBtnSkip: "Salta",
+    dataManagement: "Gestione Dati",
+    exportCSV: "Esporta Backup (CSV)",
+    importCSV: "Importa Backup (CSV)",
+    noDataToExport: "Nessun dato da esportare.",
+    invalidCsv: "Errore: file CSV non valido o corrotto.",
+    importSuccess: "Dati importati con successo!",
+    exportSuccess: "Backup esportato correttamente!"
   },
   en: {
     appTitle: "Smart Budget",
@@ -155,7 +165,14 @@ const translations = {
     tutStep4Desc: "Use the bottom menu to navigate. Check history, view charts, and change language in settings.",
     tutBtnNext: "Next",
     tutBtnFinish: "Got it!",
-    tutBtnSkip: "Skip"
+    tutBtnSkip: "Skip",
+    dataManagement: "Data Management",
+    exportCSV: "Export Backup (CSV)",
+    importCSV: "Import Backup (CSV)",
+    noDataToExport: "No data available to export.",
+    invalidCsv: "Error: Invalid or corrupted CSV file.",
+    importSuccess: "Data imported successfully!",
+    exportSuccess: "Backup exported successfully!"
   },
   fr: {
     appTitle: "Smart Budget",
@@ -213,7 +230,14 @@ const translations = {
     tutStep4Desc: "Utilisez le menu pour naviguer. Consultez l'historique, les graphiques et les paramètres.",
     tutBtnNext: "Suivant",
     tutBtnFinish: "Compris!",
-    tutBtnSkip: "Passer"
+    tutBtnSkip: "Passer",
+    dataManagement: "Gestion des Données",
+    exportCSV: "Exporter la Sauvegarde (CSV)",
+    importCSV: "Importer la Sauvegarde (CSV)",
+    noDataToExport: "Aucune donnée à exporter.",
+    invalidCsv: "Erreur: Fichier CSV invalide ou corrompu.",
+    importSuccess: "Données importées avec succès !",
+    exportSuccess: "Sauvegarde exportée avec succès !"
   },
   es: {
     appTitle: "Smart Budget",
@@ -271,7 +295,14 @@ const translations = {
     tutStep4Desc: "Usa el menú inferior para navegar por el historial, gráficos y ajustes.",
     tutBtnNext: "Siguiente",
     tutBtnFinish: "¡Entendido!",
-    tutBtnSkip: "Omitir"
+    tutBtnSkip: "Omitir",
+    dataManagement: "Gestión de Datos",
+    exportCSV: "Exportar Copia (CSV)",
+    importCSV: "Importar Copia (CSV)",
+    noDataToExport: "No hay datos para exportar.",
+    invalidCsv: "Error: Archivo CSV inválido o corrupto.",
+    importSuccess: "¡Datos importados con éxito!",
+    exportSuccess: "¡Copia exportada con éxito!"
   }
 };
 
@@ -341,6 +372,9 @@ const App = () => {
   const [isBudgetCollapsed, setIsBudgetCollapsed] = useState(false);
   const [showOverwriteModal, setShowOverwriteModal] = useState(false);
   
+  // Stato Notifiche Toast
+  const [toastMessage, setToastMessage] = useState(null);
+
   // Stato Tutorial Riveduto
   const [tutorialStep, setTutorialStep] = useState(0); 
   const [tutFade, setTutFade] = useState('in'); // Gestisce l'animazione di dissolvenza
@@ -563,11 +597,132 @@ const App = () => {
     }
   }, [tutorialStep]);
 
+  // Autoclose Toast
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // --- LOGICA IMPORT/EXPORT CSV ---
+  const handleExportCSV = () => {
+    if (history.length === 0) {
+      setToastMessage(t('noDataToExport'));
+      return;
+    }
+
+    const headers = ['id', 'monthId', 'timestamp', 'income', 'goal', 'limit', 'spent', 'saved', 'cumulativeSavings', 'w1', 'w2', 'w3', 'w4', 'w5'];
+    const csvRows = [headers.join(',')];
+
+    history.forEach(row => {
+      const values = [
+        row.id,
+        row.monthId,
+        row.timestamp,
+        row.income,
+        row.goal,
+        row.limit,
+        row.spent,
+        row.saved,
+        row.cumulativeSavings,
+        ...(row.weeklyExpenses || [0, 0, 0, 0, 0])
+      ];
+      csvRows.push(values.join(','));
+    });
+
+    const csvData = csvRows.join('\n');
+    const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `smart_budget_backup_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setToastMessage(t('exportSuccess'));
+  };
+
+  const handleImportCSV = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const rows = text.split(/\r?\n/);
+        
+        if (rows.length < 2) throw new Error("Empty");
+
+        const headers = rows[0].split(',');
+        if (!headers.includes('monthId') || !headers.includes('income')) {
+           throw new Error("Invalid Format");
+        }
+
+        const newHistory = [];
+        for (let i = 1; i < rows.length; i++) {
+          if (!rows[i].trim()) continue;
+          const values = rows[i].split(',');
+
+          const entry = {
+            id: Number(values[0]) || Date.now() + i,
+            monthId: values[1],
+            timestamp: Number(values[2]) || new Date(values[1] + '-01').getTime(),
+            income: Number(values[3]) || 0,
+            goal: Number(values[4]) || 0,
+            limit: Number(values[5]) || 0,
+            spent: Number(values[6]) || 0,
+            saved: Number(values[7]) || 0,
+            cumulativeSavings: Number(values[8]) || 0,
+            weeklyExpenses: [
+              Number(values[9] || 0),
+              Number(values[10] || 0),
+              Number(values[11] || 0),
+              Number(values[12] || 0),
+              Number(values[13] || 0)
+            ]
+          };
+          newHistory.push(entry);
+        }
+
+        // Ricalcoliamo il total savings in maniera sicura (dal vecchio al nuovo)
+        newHistory.sort((a, b) => a.monthId.localeCompare(b.monthId));
+        let runningTotal = 0;
+        newHistory.forEach(entry => {
+           runningTotal += entry.saved;
+           entry.cumulativeSavings = runningTotal;
+        });
+
+        // Riordiniamo per la view (dal nuovo al vecchio)
+        newHistory.sort((a, b) => b.monthId.localeCompare(a.monthId));
+
+        setHistory(newHistory);
+        setTotalSavings(newHistory.length > 0 ? newHistory[0].cumulativeSavings : 0);
+        setToastMessage(t('importSuccess'));
+      } catch (err) {
+        setToastMessage(t('invalidCsv'));
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset input per permettere di ricaricare lo stesso file
+  };
+
   if (!hasInitLang) return null;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24 relative overflow-clip">
       
+      {/* TOAST NOTIFICATION */}
+      {toastMessage && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[150] bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl text-sm font-bold animate-in slide-in-from-top-10 fade-in duration-300 flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          {toastMessage}
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-lg sticky top-0 z-30">
         <div className="max-w-md mx-auto flex justify-between items-center">
@@ -906,6 +1061,7 @@ const App = () => {
 
         {view === 'settings' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
+            {/* Lingua */}
             <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100">
               <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
                 <Globe className="w-6 h-6 text-indigo-600" /> {t('settingsTitle')}
@@ -927,6 +1083,30 @@ const App = () => {
                 </div>
               </div>
             </div>
+
+            {/* Gestione Dati CSV */}
+            <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100">
+              <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
+                <Database className="w-6 h-6 text-indigo-600" /> {t('dataManagement')}
+              </h3>
+              
+              <div className="space-y-3">
+                <button 
+                  onClick={handleExportCSV}
+                  className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 active:scale-[0.98] transition-all text-left group"
+                >
+                  <span className="font-bold text-slate-700 group-hover:text-indigo-700">{t('exportCSV')}</span>
+                  <Download className="w-5 h-5 text-indigo-600" />
+                </button>
+                
+                <label className="w-full flex items-center justify-between p-4 rounded-2xl border-2 border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 active:scale-[0.98] transition-all text-left cursor-pointer group">
+                  <span className="font-bold text-slate-700 group-hover:text-indigo-700">{t('importCSV')}</span>
+                  <Upload className="w-5 h-5 text-indigo-600" />
+                  <input type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
+                </label>
+              </div>
+            </div>
+            
           </div>
         )}
       </main>
