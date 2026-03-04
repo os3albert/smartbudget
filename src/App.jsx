@@ -16,7 +16,11 @@ import {
   Settings,
   Globe,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  AlertTriangle,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -70,11 +74,16 @@ const translations = {
     settingsTitle: "Impostazioni",
     selectLanguage: "Seleziona la tua lingua",
     confirmBudget: "Conferma Budget",
-    // Data keys per i grafici
     saved: "Risparmi",
     limit: "Limite",
     cumulativeSavings: "Totale Accumulato",
-    example: "Esempio:"
+    example: "Esempio:",
+    overwriteModalTitle: "Attenzione",
+    overwriteModalDesc: "Hai già salvato dei dati per questo mese. Sei sicuro di volerli sovrascrivere? I calcoli del tuo saldo totale verranno aggiornati di conseguenza.",
+    btnCancel: "Annulla",
+    btnOverwrite: "Sovrascrivi Mese",
+    selectMonthTitle: "Seleziona Mese",
+    confirm: "Conferma"
   },
   en: {
     appTitle: "Smart Budget",
@@ -114,7 +123,13 @@ const translations = {
     saved: "Saved",
     limit: "Limit",
     cumulativeSavings: "Accumulated Total",
-    example: "Example:"
+    example: "Example:",
+    overwriteModalTitle: "Warning",
+    overwriteModalDesc: "You have already saved data for this month. Are you sure you want to overwrite it? Your total balance calculations will be updated accordingly.",
+    btnCancel: "Cancel",
+    btnOverwrite: "Overwrite Month",
+    selectMonthTitle: "Select Month",
+    confirm: "Confirm"
   },
   fr: {
     appTitle: "Smart Budget",
@@ -154,7 +169,13 @@ const translations = {
     saved: "Économisé",
     limit: "Limite",
     cumulativeSavings: "Total Cumulé",
-    example: "Exemple:"
+    example: "Exemple:",
+    overwriteModalTitle: "Attention",
+    overwriteModalDesc: "Vous avez déjà enregistré des données pour ce mois. Êtes-vous sûr de vouloir les écraser ? Les calculs de votre solde total seront mis à jour en conséquence.",
+    btnCancel: "Annuler",
+    btnOverwrite: "Écraser le mois",
+    selectMonthTitle: "Choisir le mois",
+    confirm: "Confirmer"
   },
   es: {
     appTitle: "Smart Budget",
@@ -194,7 +215,13 @@ const translations = {
     saved: "Ahorrado",
     limit: "Límite",
     cumulativeSavings: "Total Acumulado",
-    example: "Ejemplo:"
+    example: "Ejemplo:",
+    overwriteModalTitle: "Atención",
+    overwriteModalDesc: "Ya has guardado datos para este mes. ¿Estás seguro de que deseas sobrescribirlos? Los cálculos de tu saldo total se actualizarán en consecuencia.",
+    btnCancel: "Cancelar",
+    btnOverwrite: "Sobrescribir Mes",
+    selectMonthTitle: "Seleccionar Mes",
+    confirm: "Confirmar"
   }
 };
 
@@ -210,14 +237,12 @@ const App = () => {
   const [lang, setLang] = useState('it');
   const [hasInitLang, setHasInitLang] = useState(false);
 
-  // Rilevamento lingua iniziale
   useEffect(() => {
     const savedLang = localStorage.getItem('appLanguage');
     if (savedLang && translations[savedLang]) {
       setLang(savedLang);
       setHasInitLang(true);
     } else {
-      // Geolocalizzazione tramite IP per dedurre la lingua
       fetch('https://ipapi.co/json/')
         .then(res => res.json())
         .then(data => {
@@ -225,24 +250,18 @@ const App = () => {
           if (country === 'IT') setLang('it');
           else if (country === 'FR') setLang('fr');
           else if (country === 'ES') setLang('es');
-          else setLang('en'); // Fallback internazionale
+          else setLang('en');
         })
-        .catch(() => setLang('en')) // Fallback di sicurezza in caso di errore rete
+        .catch(() => setLang('en'))
         .finally(() => setHasInitLang(true));
     }
   }, []);
 
-  // Salva lingua al cambio
   useEffect(() => {
-    if (hasInitLang) {
-      localStorage.setItem('appLanguage', lang);
-    }
+    if (hasInitLang) localStorage.setItem('appLanguage', lang);
   }, [lang, hasInitLang]);
 
-  // Helper per traduzioni
   const t = (key) => translations[lang][key] || key;
-
-  // Utility per formattare i numeri in Euro localizzati
   const formatEuro = (value) => new Intl.NumberFormat(locales[lang], { style: 'currency', currency: 'EUR' }).format(value);
 
   // --- STATO CORE APP ---
@@ -256,27 +275,84 @@ const App = () => {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const [currentIncome, setCurrentIncome] = useState(() => {
-    const saved = localStorage.getItem('currentIncome');
-    return saved ? parseFloat(saved) : 0;
+  // Mese Selezionato (YYYY-MM)
+  const [selectedMonthId, setSelectedMonthId] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [currentSavingsGoal, setCurrentSavingsGoal] = useState(() => {
-    const saved = localStorage.getItem('currentSavingsGoal');
-    return saved ? parseFloat(saved) : 0;
-  });
-  const [weeklyExpenses, setWeeklyExpenses] = useState(() => {
-    const saved = localStorage.getItem('weeklyExpenses');
-    return saved ? JSON.parse(saved) : [0, 0, 0, 0, 0];
-  });
+
+  const [currentIncome, setCurrentIncome] = useState(0);
+  const [currentSavingsGoal, setCurrentSavingsGoal] = useState(0);
+  const [weeklyExpenses, setWeeklyExpenses] = useState([0, 0, 0, 0, 0]);
   const [savedWeeks, setSavedWeeks] = useState([false, false, false, false, false]);
   const [actualSpent, setActualSpent] = useState(0);
-  const [view, setView] = useState('dashboard'); // dashboard, history, charts, settings
+  const [view, setView] = useState('dashboard');
   const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [isBudgetCollapsed, setIsBudgetCollapsed] = useState(false);
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  
+  // Stato per il nuovo Month Picker Custom
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
 
-  // Info mese attuale e precedente (Localizzati in base alla lingua scelta)
-  const currentMonthName = new Date().toLocaleDateString(locales[lang], { month: 'long', year: 'numeric' });
-  const prevMonth = history.length > 0 ? history[0] : null;
+  // Formatta Mese Id (YYYY-MM) in stringa leggibile (es. "Marzo 2026")
+  const formatMonthName = (monthId) => {
+    if(!monthId) return '';
+    const [year, month] = monthId.split('-');
+    const date = new Date(year, month - 1, 1);
+    return date.toLocaleDateString(locales[lang], { month: 'long', year: 'numeric' });
+  };
+
+  // Carica i dati del mese selezionato se esistono già nello storico
+  useEffect(() => {
+    const existingEntry = history.find(e => e.monthId === selectedMonthId);
+    if (existingEntry) {
+      setCurrentIncome(existingEntry.income || 0);
+      setCurrentSavingsGoal(existingEntry.goal || 0);
+      setWeeklyExpenses(existingEntry.weeklyExpenses || [0, 0, 0, 0, 0]);
+      setActualSpent(existingEntry.spent || 0);
+      setSavedWeeks([false, false, false, false, false]); 
+    } else {
+      const savedDraftIncome = localStorage.getItem('currentIncome');
+      setCurrentIncome(savedDraftIncome ? parseFloat(savedDraftIncome) : 0);
+      
+      const savedDraftGoal = localStorage.getItem('currentSavingsGoal');
+      setCurrentSavingsGoal(savedDraftGoal ? parseFloat(savedDraftGoal) : 0);
+      
+      const savedDraftExpenses = localStorage.getItem('weeklyExpenses');
+      if (savedDraftExpenses) {
+        const parsed = JSON.parse(savedDraftExpenses);
+        setWeeklyExpenses(parsed);
+        setActualSpent(parsed.reduce((a, b) => a + b, 0));
+      } else {
+        setWeeklyExpenses([0, 0, 0, 0, 0]);
+        setActualSpent(0);
+      }
+      setSavedWeeks([false, false, false, false, false]);
+    }
+    setIsBudgetCollapsed(false);
+  }, [selectedMonthId, history]);
+
+  useEffect(() => {
+    localStorage.setItem('totalSavings', totalSavings.toString());
+    localStorage.setItem('budgetHistory', JSON.stringify(history));
+    
+    const isAlreadySaved = history.some(e => e.monthId === selectedMonthId);
+    if (!isAlreadySaved) {
+      localStorage.setItem('currentIncome', currentIncome.toString());
+      localStorage.setItem('currentSavingsGoal', currentSavingsGoal.toString());
+      localStorage.setItem('weeklyExpenses', JSON.stringify(weeklyExpenses));
+    }
+  }, [totalSavings, history, currentIncome, currentSavingsGoal, weeklyExpenses, selectedMonthId]);
+
+  const monthlySpendingLimit = Math.max(0, currentIncome - currentSavingsGoal);
+  const weeklySpendingLimit = monthlySpendingLimit / 4.33;
+
+  const getPrevMonthData = () => {
+    const sortedHistory = [...history].sort((a, b) => b.monthId.localeCompare(a.monthId));
+    return sortedHistory.find(e => e.monthId < selectedMonthId);
+  };
+  const prevMonth = getPrevMonthData();
 
   const loadPreviousMonthData = () => {
     if (prevMonth) {
@@ -285,28 +361,14 @@ const App = () => {
     }
   };
 
-  useEffect(() => {
-    localStorage.setItem('totalSavings', totalSavings.toString());
-    localStorage.setItem('budgetHistory', JSON.stringify(history));
-    localStorage.setItem('currentIncome', currentIncome.toString());
-    localStorage.setItem('currentSavingsGoal', currentSavingsGoal.toString());
-    localStorage.setItem('weeklyExpenses', JSON.stringify(weeklyExpenses));
-  }, [totalSavings, history, currentIncome, currentSavingsGoal, weeklyExpenses]);
-
-  useEffect(() => {
-    const sum = weeklyExpenses.reduce((acc, curr) => acc + curr, 0);
-    setActualSpent(sum);
-  }, [weeklyExpenses]);
-
-  const monthlySpendingLimit = Math.max(0, currentIncome - currentSavingsGoal);
-  const weeksInMonth = 4.33; 
-  const weeklySpendingLimit = monthlySpendingLimit / weeksInMonth;
-
   const handleWeeklyChange = (index, value) => {
     const newExpenses = [...weeklyExpenses];
     newExpenses[index] = parseFloat(value) || 0;
     setWeeklyExpenses(newExpenses);
     
+    const newSum = newExpenses.reduce((acc, curr) => acc + curr, 0);
+    setActualSpent(newSum);
+
     const newSavedWeeks = [...savedWeeks];
     newSavedWeeks[index] = false;
     setSavedWeeks(newSavedWeeks);
@@ -320,46 +382,66 @@ const App = () => {
 
   const handleCloseMonth = () => {
     if (currentIncome <= 0) return;
-
-    const monthlySaving = currentIncome - actualSpent;
-    const newTotalSavings = totalSavings + monthlySaving;
     
-    // Salviamo il timestamp per poter formattare la data dinamicamente al cambio lingua
+    const exists = history.some(e => e.monthId === selectedMonthId);
+    if (exists) {
+      setShowOverwriteModal(true);
+    } else {
+      executeSaveMonth();
+    }
+  };
+
+  const executeSaveMonth = () => {
+    const monthlySaving = currentIncome - actualSpent;
+    
     const newEntry = {
-      id: Date.now(),
-      timestamp: Date.now(), 
+      id: Date.now(), 
+      monthId: selectedMonthId,
+      timestamp: new Date(selectedMonthId + '-01').getTime(),
       income: currentIncome,
       goal: currentSavingsGoal,
       limit: monthlySpendingLimit,
       spent: actualSpent,
       saved: monthlySaving,
-      cumulativeSavings: newTotalSavings
+      weeklyExpenses: [...weeklyExpenses],
+      cumulativeSavings: 0 
     };
 
-    setTotalSavings(newTotalSavings);
-    setHistory([newEntry, ...history]);
+    let newHistory = [...history];
+    const existingIndex = newHistory.findIndex(e => e.monthId === selectedMonthId);
     
-    setCurrentIncome(0);
-    setCurrentSavingsGoal(0);
-    setActualSpent(0);
-    setWeeklyExpenses([0, 0, 0, 0, 0]);
-    setSavedWeeks([false, false, false, false, false]);
-    setActiveWeekTab(0);
-    setIsBudgetCollapsed(false);
+    if (existingIndex >= 0) {
+      newEntry.id = newHistory[existingIndex].id;
+      newHistory[existingIndex] = newEntry;
+    } else {
+      newHistory.push(newEntry);
+    }
+
+    newHistory.sort((a, b) => a.monthId.localeCompare(b.monthId));
+    let runningTotal = 0;
+    newHistory.forEach(entry => {
+        runningTotal += entry.saved;
+        entry.cumulativeSavings = runningTotal;
+    });
+
+    newHistory.sort((a, b) => b.monthId.localeCompare(a.monthId));
+
+    setHistory(newHistory);
+    setTotalSavings(newHistory.length > 0 ? newHistory[0].cumulativeSavings : 0);
+    
     localStorage.removeItem('currentIncome');
     localStorage.removeItem('currentSavingsGoal');
     localStorage.removeItem('weeklyExpenses');
-    setView('dashboard');
+    setShowOverwriteModal(false);
+    
+    const now = new Date();
+    setSelectedMonthId(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+    setView('history');
   };
 
-  // Prepara i dati per i grafici localizzando la data al volo
   const chartData = useMemo(() => {
     return [...history].reverse().map(entry => {
-      // Fallback a entry.date stringa vecchia se timestamp non esiste
-      const displayDate = entry.timestamp 
-        ? new Date(entry.timestamp).toLocaleDateString(locales[lang], { month: 'short', year: '2-digit' })
-        : (entry.date || '');
-
+      const displayDate = formatMonthName(entry.monthId);
       return {
         name: displayDate,
         saved: entry.saved,
@@ -371,11 +453,28 @@ const App = () => {
     });
   }, [history, lang]);
 
-  if (!hasInitLang) return null; // Evita flickering in fase di rilevamento lingua
+  // Gestione Month Picker Custom
+  const monthsList = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const d = new Date(2000, i, 1);
+      return {
+        id: String(i + 1).padStart(2, '0'),
+        name: d.toLocaleDateString(locales[lang], { month: 'short' })
+      };
+    });
+  }, [lang]);
+
+  const selectPickerMonth = (monthId) => {
+    setSelectedMonthId(`${pickerYear}-${monthId}`);
+    setShowMonthPicker(false);
+  };
+
+  if (!hasInitLang) return null;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24">
-      {/* Header */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-24 relative overflow-x-hidden">
+      
+      {/* HEADER */}
       <header className="bg-indigo-600 text-white p-6 rounded-b-[2.5rem] shadow-lg sticky top-0 z-20">
         <div className="max-w-md mx-auto flex justify-between items-center">
           <div>
@@ -392,7 +491,7 @@ const App = () => {
 
       <main className="max-w-md mx-auto p-4 space-y-6 -mt-6 relative z-10">
         
-        {/* Card Saldo Totale (Mostrato su Dash, Storico e Grafici) */}
+        {/* Card Saldo Totale */}
         {view !== 'settings' && (
           <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -405,23 +504,30 @@ const App = () => {
           </div>
         )}
 
-        {/* Sezione DASHBOARD */}
+        {/* DASHBOARD */}
         {view === 'dashboard' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
             
             {/* 1. Impostazioni Iniziali */}
             <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100 transition-all duration-300">
-              <div 
-                className="flex justify-between items-center mb-4 cursor-pointer group select-none"
-                onClick={() => setIsBudgetCollapsed(!isBudgetCollapsed)}
-              >
-                <h3 className="text-lg font-bold flex items-center gap-2 group-hover:text-indigo-700 transition-colors">
+              <div className="flex justify-between items-center mb-4 select-none">
+                <h3 
+                  className="text-lg font-bold flex items-center gap-2 group hover:text-indigo-700 transition-colors cursor-pointer"
+                  onClick={() => setIsBudgetCollapsed(!isBudgetCollapsed)}
+                >
                   <Calendar className="w-5 h-5 text-indigo-600" /> {t('monthlyBudget')}
                   {isBudgetCollapsed ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronUp className="w-4 h-4 text-slate-400" />}
                 </h3>
-                <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg uppercase tracking-tighter">
-                  {currentMonthName}
-                </span>
+
+                {/* Selettore Mese Custom (Pulsante che apre il modale) */}
+                <button 
+                  onClick={() => setShowMonthPicker(true)}
+                  className="relative group flex items-center"
+                >
+                  <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg uppercase tracking-tighter flex items-center gap-1 group-hover:bg-indigo-100 transition-all active:scale-95 shadow-sm">
+                    {formatMonthName(selectedMonthId)} <ChevronDown className="w-3 h-3" />
+                  </span>
+                </button>
               </div>
 
               {!isBudgetCollapsed && (
@@ -435,6 +541,7 @@ const App = () => {
                       <button 
                         onClick={loadPreviousMonthData}
                         className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        title="Copia dati mese precedente"
                       >
                         <RotateCcw className="w-4 h-4" />
                       </button>
@@ -579,7 +686,7 @@ const App = () => {
           </div>
         )}
 
-        {/* Sezione STORICO */}
+        {/* STORICO & GRAFICI & SETTINGS */}
         {view === 'history' && (
           <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-300">
             {history.length === 0 ? (
@@ -588,28 +695,22 @@ const App = () => {
                 <p className="text-slate-400 font-medium text-sm">{t('noDataHistory')}</p>
               </div>
             ) : (
-              history.map((entry) => {
-                const displayDate = entry.timestamp 
-                  ? new Date(entry.timestamp).toLocaleDateString(locales[lang], { month: 'long', year: 'numeric' })
-                  : entry.date;
-                return (
-                  <div key={entry.id} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 flex items-center justify-between">
-                    <div>
-                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{displayDate}</p>
-                      <h4 className="font-bold text-slate-800">{t('balance')}: {formatEuro(entry.saved)}</h4>
-                      <p className="text-[10px] text-slate-500">{t('spent')}: {formatEuro(entry.spent)} / {t('goal')}: {formatEuro(entry.goal)}</p>
-                    </div>
-                    <div className={`p-3 rounded-2xl ${entry.saved >= entry.goal ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                      {entry.saved >= entry.goal ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
-                    </div>
+              history.map((entry) => (
+                <div key={entry.id} className="bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-tighter">{formatMonthName(entry.monthId)}</p>
+                    <h4 className="font-bold text-slate-800">{t('balance')}: {formatEuro(entry.saved)}</h4>
+                    <p className="text-[10px] text-slate-500">{t('spent')}: {formatEuro(entry.spent)} / {t('goal')}: {formatEuro(entry.goal)}</p>
                   </div>
-                );
-              })
+                  <div className={`p-3 rounded-2xl ${entry.saved >= entry.goal ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                    {entry.saved >= entry.goal ? <ArrowUpCircle className="w-6 h-6" /> : <ArrowDownCircle className="w-6 h-6" />}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         )}
 
-        {/* Sezione GRAFICI */}
         {view === 'charts' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
             {chartData.length === 0 ? (
@@ -627,14 +728,9 @@ const App = () => {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
                         <YAxis fontSize={10} axisLine={false} tickLine={false} tickFormatter={(val) => `€${val}`} />
-                        <Tooltip 
-                          contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                          formatter={(value, name) => [formatEuro(value), t(name)]}
-                        />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} formatter={(value, name) => [formatEuro(value), t(name)]}/>
                         <Bar dataKey="saved" name="saved" radius={[8, 8, 0, 0]}>
-                          {chartData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.saved >= entry.goal ? '#10b981' : '#f43f5e'} />
-                          ))}
+                          {chartData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.saved >= entry.goal ? '#10b981' : '#f43f5e'} />))}
                         </Bar>
                         <Line type="monotone" dataKey="goal" name="goal" stroke="#6366f1" strokeWidth={3} dot={{ r: 4, fill: '#6366f1' }} />
                       </ComposedChart>
@@ -650,10 +746,7 @@ const App = () => {
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" fontSize={10} axisLine={false} tickLine={false} />
                         <YAxis fontSize={10} axisLine={false} tickLine={false} tickFormatter={(val) => `€${val}`} />
-                        <Tooltip 
-                          contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                          formatter={(value, name) => [formatEuro(value), t(name)]}
-                        />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}} formatter={(value, name) => [formatEuro(value), t(name)]}/>
                         <Bar dataKey="spent" name="spent" fill="#cbd5e1" radius={[8, 8, 0, 0]} />
                         <ReferenceLine y={chartData[chartData.length-1]?.limit} stroke="#f43f5e" strokeDasharray="5 5" label={{ position: 'top', value: t('limit'), fill: '#f43f5e', fontSize: 10, fontWeight: 'bold' }} />
                       </BarChart>
@@ -668,10 +761,7 @@ const App = () => {
                       <LineChart data={chartData}>
                         <XAxis dataKey="name" fontSize={10} tick={{fill: '#6366f1'}} axisLine={false} />
                         <YAxis fontSize={10} tick={{fill: '#6366f1'}} axisLine={false} tickFormatter={(val) => `€${val}`} />
-                        <Tooltip 
-                          contentStyle={{borderRadius: '16px', border: 'none'}}
-                          formatter={(value, name) => [formatEuro(value), t(name)]}
-                        />
+                        <Tooltip contentStyle={{borderRadius: '16px', border: 'none'}} formatter={(value, name) => [formatEuro(value), t(name)]}/>
                         <Line type="stepAfter" dataKey="cumulativeSavings" name="cumulativeSavings" stroke="#10b981" strokeWidth={4} dot={{ r: 6, fill: '#10b981', strokeWidth: 2, stroke: '#fff' }} />
                       </LineChart>
                     </ResponsiveContainer>
@@ -682,7 +772,6 @@ const App = () => {
           </div>
         )}
 
-        {/* Sezione IMPOSTAZIONI LINGUA */}
         {view === 'settings' && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-300">
             <div className="bg-white rounded-3xl p-6 shadow-md border border-slate-100">
@@ -692,14 +781,8 @@ const App = () => {
               
               <div className="space-y-4">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">{t('selectLanguage')}</label>
-                
                 <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { code: 'it', label: 'Italiano', flag: '🇮🇹' },
-                    { code: 'en', label: 'English', flag: '🇬🇧' },
-                    { code: 'fr', label: 'Français', flag: '🇫🇷' },
-                    { code: 'es', label: 'Español', flag: '🇪🇸' }
-                  ].map(({code, label, flag}) => (
+                  {[ { code: 'it', label: 'Italiano', flag: '🇮🇹' }, { code: 'en', label: 'English', flag: '🇬🇧' }, { code: 'fr', label: 'Français', flag: '🇫🇷' }, { code: 'es', label: 'Español', flag: '🇪🇸' } ].map(({code, label, flag}) => (
                     <button
                       key={code}
                       onClick={() => setLang(code)}
@@ -714,7 +797,6 @@ const App = () => {
             </div>
           </div>
         )}
-
       </main>
 
       {/* Navigazione Bottom */}
@@ -736,6 +818,99 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-tighter truncate w-full text-center px-1">{t('navSettings')}</span>
         </button>
       </nav>
+
+      {/* MODALE SOVRASCRITTURA */}
+      {showOverwriteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] p-6 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-6 h-6 text-rose-500" />
+              </div>
+              <button onClick={() => setShowOverwriteModal(false)} className="p-2 text-slate-400 hover:text-slate-600 bg-slate-50 rounded-full">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <h3 className="text-xl font-black text-slate-800 mb-2">{t('overwriteModalTitle')}</h3>
+            <p className="text-sm text-slate-500 leading-relaxed mb-6">
+              {t('overwriteModalDesc')}
+            </p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowOverwriteModal(false)}
+                className="flex-1 py-3 px-4 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors"
+              >
+                {t('btnCancel')}
+              </button>
+              <button 
+                onClick={executeSaveMonth}
+                className="flex-1 py-3 px-4 bg-rose-500 text-white font-bold rounded-xl shadow-lg shadow-rose-200 hover:bg-rose-600 active:scale-95 transition-all"
+              >
+                {t('btnOverwrite')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM MONTH PICKER MODAL (Wheel style list) */}
+      {showMonthPicker && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div 
+            className="absolute inset-0 z-0" 
+            onClick={() => setShowMonthPicker(false)}
+          ></div>
+          <div className="relative z-10 bg-white rounded-t-[3rem] p-6 pb-10 shadow-2xl animate-in slide-in-from-bottom-full duration-300 transition-transform w-full max-w-md mx-auto">
+            <div className="w-12 h-1 bg-slate-200 rounded-full mx-auto mb-6"></div>
+            
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-black text-slate-800">{t('selectMonthTitle')}</h3>
+              <div className="flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                <button 
+                  onClick={() => setPickerYear(pickerYear - 1)}
+                  className="p-2 bg-white rounded-xl shadow-sm text-slate-600 active:scale-90 transition-transform"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <span className="text-lg font-black text-indigo-600 min-w-[60px] text-center">{pickerYear}</span>
+                <button 
+                  onClick={() => setPickerYear(pickerYear + 1)}
+                  className="p-2 bg-white rounded-xl shadow-sm text-slate-600 active:scale-90 transition-transform"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 mb-8">
+              {monthsList.map((month) => {
+                const isSelected = selectedMonthId === `${pickerYear}-${month.id}`;
+                return (
+                  <button
+                    key={month.id}
+                    onClick={() => selectPickerMonth(month.id)}
+                    className={`py-4 rounded-2xl font-bold text-sm transition-all active:scale-95 border-2 ${
+                      isSelected 
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                      : 'bg-slate-50 border-transparent text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {month.name}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button 
+              onClick={() => setShowMonthPicker(false)}
+              className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl active:scale-95 transition-all"
+            >
+              {t('confirm')}
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
