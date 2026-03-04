@@ -1,0 +1,17 @@
+{
+  "name": "Smart Budget",
+  "short_name": "Budget",
+  "description": "Pianifica e Risparmia",
+  "start_url": "/smartbudget/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}
